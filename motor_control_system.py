@@ -8,6 +8,7 @@ performed over a broadcast-capable Ethernet network using designated UDP ports o
 import socket
 import struct
 import time
+import select
 
 
 class MotorControlSystem:
@@ -16,8 +17,8 @@ class MotorControlSystem:
         ip_address: str = "192.168.4.201",
         broadcast_address: str = "192.168.255.255",
         subnet_mask: str = "255.255.0.0",
-        port_send: int = 3000,
-        port_receive: int = 3001,
+        port_send: int = 3001,
+        port_receive: int = 3000,
     ):
         """
         Initialize the motor control system with the given parameters.
@@ -54,16 +55,17 @@ class MotorControlSystem:
         self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # Allow broadcast messages
-        self.send_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        # # Allow broadcast messages
+        # self.send_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
         # Bind to the receive port
-        self.receive_socket.bind(('0.0.0.0', self.port_send))
+        self.receive_socket.bind(('0.0.0.0', self.port_receive))
 
         # Send enable command
-        self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
+        #self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
+        self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=40, y=20) # Debug
 
-        while True:
+        while True:     ## DEBUG
             self._update_status()
             print(f"enabled: {self.enabled}, ready: {self.ready}, error: {self.error}")
             time.sleep(1)
@@ -114,15 +116,6 @@ class MotorControlSystem:
         Get the current velocity of the motor axes.
 
         :return: current velocity as float between 0.0 and 1.0
-        """
-        self._update_status()
-        return self.current_velocity
-
-    def get_velocity(self) -> int:
-        """
-        Get the current velocity of the motor axes.
-
-        :return: current velocity in mm/s
         """
         self._update_status()
         return self.current_velocity
@@ -189,29 +182,27 @@ class MotorControlSystem:
         self.receive_socket.setblocking(False)
 
         try:
-            # Try to receive data, but don't block
-            data, _ = self.receive_socket.recvfrom(32)  # ActualValues size is 32 bytes
-
-            if len(data) == 32:
-                # Unpack according to the specification
-                # Format: 3 booleans (1 byte each), 5 bytes padding, 3 doubles (8 bytes each)
-                ready, enabled, error, _, _, _, _, _, velocity, x, y = struct.unpack(
-                    '<BBB5sddd', data
-                )
-
-                self.ready = bool(ready)
-                self.enabled = bool(enabled)
-                self.error = bool(error)
-                self.current_velocity = float(velocity)  # Store as float, not int
-                self.current_position = (float(x), float(y))  # Store as float for precision
-        except BlockingIOError:
-            # No data available, that's fine
-            pass
+            ready_sockets, _, _ = select.select([self.receive_socket], [], [], 0.5)
+            if ready_sockets:
+                data, addr = self.receive_socket.recvfrom(32)  # ActualValues size is 32 bytes
+                print(f"Raw data received ({len(data)} bytes): {data}")
+                if len(data) == 32:
+                    # Format: 3 Booleans, 5 Bytes Padding, 3 doubles
+                    ready, enabled, error, velocity, x, y = struct.unpack('<BBB5xddd', data)
+                    self.ready = bool(ready)
+                    self.enabled = bool(enabled)
+                    self.error = bool(error)
+                    self.current_velocity = float(velocity)
+                    self.current_position = (float(x), float(y))
+                else:
+                    print(f"Invalid data length: {len(data)}")
+            else:
+                print("No data available.")
         except Exception as e:
             print(f"Error receiving update: {e}")
-
-        # Return to blocking mode for other operations
-        self.receive_socket.setblocking(True)
+        finally:
+            # Return to blocking mode for other operations
+            self.receive_socket.setblocking(True)
 
     def _send_setpoint(self, enable: bool, acknowledge: bool,
                        velocity: float, acceleration: float,
@@ -238,7 +229,8 @@ class MotorControlSystem:
             float(x),
             float(y)
         )
+        print(f"Raw data to send ({len(data)} bytes): {data}")
 
         # Send to the PLC - either unicast or broadcast
         target_address = self.broadcast_address if use_broadcast else self.ip_address
-        self.send_socket.sendto(data, (target_address, self.port_receive))
+        self.send_socket.sendto(data, (target_address, self.port_send))
