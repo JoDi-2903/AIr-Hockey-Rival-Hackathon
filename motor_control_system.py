@@ -63,19 +63,25 @@ class MotorControlSystem:
         # Send enable command
         self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
 
-        # Wait for system to be ready and enabled
-        max_attempts = 10
-        attempt = 0
-
-        while attempt < max_attempts:
+        while True:
             self._update_status()
-            if self.ready and self.enabled:
-                return
-            time.sleep(0.5)
-            attempt += 1
+            print(f"enabled: {self.enabled}, ready: {self.ready}, error: {self.error}")
+            time.sleep(1)
 
-        # If we get here, connection failed
-        raise ConnectionError("Failed to connect: System not ready or not enabled")
+
+        ## Wait for system to be ready and enabled
+        # max_attempts = 10
+        # attempt = 0
+        #
+        # while attempt < max_attempts:
+        #     self._update_status()
+        #     if self.ready and self.enabled:
+        #         return
+        #     time.sleep(0.5)
+        #     attempt += 1
+        #
+        # # If we get here, connection failed
+        # raise ConnectionError("Failed to connect: System not ready or not enabled")
 
     def set_position(self, x: int, y: int, velocity: int, acceleration: int = 0) -> None:
         """
@@ -83,8 +89,8 @@ class MotorControlSystem:
 
         :param x: Target X position
         :param y: Target Y position
-        :param velocity: Desired velocity (0 for maximum velocity)
-        :param acceleration: Desired acceleration (0 for maximum acceleration)
+        :param velocity: Desired velocity in mm/s (0 for maximum velocity)
+        :param acceleration: Desired  in mm/s^2 (0 for maximum acceleration)
         :raises: ValueError if the error flag is set to True.
         """
         # Check for errors first
