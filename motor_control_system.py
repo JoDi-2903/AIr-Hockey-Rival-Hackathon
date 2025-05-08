@@ -199,9 +199,14 @@ class MotorControlSystem:
 
         try:
             ready_sockets, _, _ = select.select([self.receive_socket], [], [], 0.5)
-            if ready_sockets:
-                data, addr = self.receive_socket.recvfrom(32)  # ActualValues size is 32 bytes
-                print(f"Raw data received ({len(data)} bytes): {data}")
+            data = None
+
+            if not ready_sockets:
+                print("No data available.")
+
+            while ready_sockets:
+                data, _ = self.receive_socket.recvfrom(32)  # ActualValues size is 32 bytes
+                # print(f"Raw data received ({len(data)} bytes): {data}")
                 if len(data) == 32:
                     # Format: 3 Booleans, 5 Bytes Padding, 3 doubles
                     ready, enabled, error, velocity, x, y = struct.unpack('<BBB5xddd', data)
@@ -212,8 +217,6 @@ class MotorControlSystem:
                     self.current_position = (float(x), float(y))
                 else:
                     print(f"Invalid data length: {len(data)}")
-            else:
-                print("No data available.")
         except Exception as e:
             print(f"Error receiving update: {e}")
         finally:
@@ -245,7 +248,7 @@ class MotorControlSystem:
             float(x),
             float(y)
         )
-        print(f"Raw data to send ({len(data)} bytes): {data}")
+        # print(f"Raw data to send ({len(data)} bytes): {data}")
 
         # Send to the PLC - either unicast or broadcast
         target_address = self.broadcast_address if use_broadcast else self.ip_address
