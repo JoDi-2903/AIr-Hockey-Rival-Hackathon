@@ -67,7 +67,7 @@ while True:
         circularity = 4 * np.pi * (area / (perimeter * perimeter))
 
         # only proceed if the radius meets a minimum size and circularity is above a threshold
-        if radius > 10 and circularity > 0.7:
+        if radius > 3 and circularity > 0.3:
             M = cv2.moments(c)
             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
             cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 255), 2)
@@ -75,13 +75,6 @@ while True:
 
     # update the points queue
     pts.appendleft(center)
-
-    # loop over the set of tracked points
-    for i in range(1, len(pts)):
-        if pts[i - 1] is None or pts[i] is None:
-            continue
-        thickness = int(np.sqrt(64 / float(i + 1)) * 2.5)
-        cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
 
     # show the frame to our screen
     cv2.imshow("Frame", frame)
