@@ -1,8 +1,7 @@
-from algo.motor_interface import send_command, get_our_paddle
 from algo.constants import PUCK_RADIUS
 from algo.model import Vec
+from algo.motor_interface import send_command, get_paddle_pos
 from algo.util import clamp
-from algo.constants import field
 
 state = "start"
 def jitter_in_front_of_goal():
@@ -10,18 +9,21 @@ def jitter_in_front_of_goal():
     global field
     bottom = field.h / 2 - field.home_goal_height / 2
     top = field.h / 2 + field.home_goal_height / 2
-    target_x = PUCK_RADIUS / 2
+    target_x = PUCK_RADIUS
+    target_x = 50 # TODO: remove when CS translation is in place
 
-    pad, _ = get_our_paddle()
+    pad = get_paddle_pos()
+
+    eps = 30 # what distance to turn around at
 
     match state:
         case "down":
             # wait until we are at our goal
-            if (pad.is_close_to(Vec(target_x, bottom))):
+            if (pad.is_close_to(Vec(target_x, bottom), eps)):
                 send_command(Vec(target_x, top))
                 state = "up"
         case "up":
-            if (pad.is_close_to(Vec(target_x, top))):
+            if (pad.is_close_to(Vec(target_x, top), eps)):
                 send_command(Vec(target_x, bottom))
                 state = "down"
         case _:
