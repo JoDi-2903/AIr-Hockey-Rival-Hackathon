@@ -133,7 +133,7 @@ class MotorControlSystem:
 
         :return: current velocity as float between 0.0 and 1.0
         """
-        self._update_status()
+        self._update_status() # FEATURE: don't updated twice
         return self.current_velocity
 
     def acknowledge_error(self) -> None:
