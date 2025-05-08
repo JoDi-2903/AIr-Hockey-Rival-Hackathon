@@ -7,6 +7,7 @@ performed over a broadcast-capable Ethernet network using designated UDP ports o
 
 import socket
 import struct
+import threading
 import time
 from typing import Tuple
 
@@ -53,6 +54,7 @@ class MotorControlSystem:
         # Communication sockets
         self.send_socket = None
         self.receive_socket = None
+        self.receive_thread = None
 
     def connect(self) -> None:
         """
@@ -66,6 +68,9 @@ class MotorControlSystem:
 
         # Bind to the receive port
         self.receive_socket.bind(('0.0.0.0', self.port_receive))
+
+        # Start thread to read from receive_socket
+        self.receive_thread = threading.Thread(target=self._receive_loop, args=(self,))
 
         # Send enable command
         self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
@@ -188,40 +193,41 @@ class MotorControlSystem:
         if self.receive_socket:
             self.receive_socket.close()
 
+    def _receive_loop(self) -> None:
+        msglen = 32
+        while True:
+            try:
+                # Read until we have 32 bytes (might happen in multiple chunks in high network load)
+                chunks = []
+                bytes_recd = 0
+                while bytes_recd < msglen:
+                    # blocking (this is why we are in an extra thread)
+                    chunk = self.receive_socket.recv(msglen - bytes_recd)
+                    if chunk == b'':
+                        raise RuntimeError("socket connection broken")
+                    chunks.append(chunk)
+                    bytes_recd = bytes_recd + len(chunk)
+                self.data = b''.join(chunks)
+            except Exception as e:
+                print(f"Error receiving update: {e}")
+
     def _update_status(self) -> None:
         """
         Update the status by receiving and processing the latest message from the controller.
 
         On-demand update instead of a threaded approach.
         """
-        # Set socket to non-blocking mode
-        self.receive_socket.setblocking(False)
+        if not self.data:
+            print("Error: no data to parse")
+        # print(f"Converting raw data: ({len(data)} bytes): {data}")
 
-        try:
-            ready_sockets, _, _ = select.select([self.receive_socket], [], [], 0.5)
-            data = None
-
-            if not ready_sockets:
-                print("No data available.")
-
-            while ready_sockets:
-                data, _ = self.receive_socket.recvfrom(32)  # ActualValues size is 32 bytes
-                # print(f"Raw data received ({len(data)} bytes): {data}")
-                if len(data) == 32:
-                    # Format: 3 Booleans, 5 Bytes Padding, 3 doubles
-                    ready, enabled, error, velocity, x, y = struct.unpack('<BBB5xddd', data)
-                    self.ready = bool(ready)
-                    self.enabled = bool(enabled)
-                    self.error = bool(error)
-                    self.current_velocity = float(velocity)
-                    self.current_position = (float(x), float(y))
-                else:
-                    print(f"Invalid data length: {len(data)}")
-        except Exception as e:
-            print(f"Error receiving update: {e}")
-        finally:
-            # Return to blocking mode for other operations
-            self.receive_socket.setblocking(True)
+        # Format: 3 Booleans, 5 Bytes Padding, 3 doubles
+        ready, enabled, error, velocity, x, y = struct.unpack('<BBB5xddd', self.data)
+        self.ready = bool(ready)
+        self.enabled = bool(enabled)
+        self.error = bool(error)
+        self.current_velocity = float(velocity)
+        self.current_position = (float(x), float(y))
 
     def _send_setpoint(self, enable: bool, acknowledge: bool,
                        velocity: float, acceleration: float,
