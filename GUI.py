@@ -2,6 +2,9 @@ import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 import queue
 
+from algo.motor_interface import mcs
+
+
 class App(tk.Tk):
     running: bool = False
 
@@ -23,9 +26,11 @@ class App(tk.Tk):
 
     def start_running(self):
         self.running = True
+        mcs.connect()
 
     def stop_running(self):
         self.running = False
+        mcs.close()
 
     def process_log_queue(self):
         while not self.log_queue.empty():
