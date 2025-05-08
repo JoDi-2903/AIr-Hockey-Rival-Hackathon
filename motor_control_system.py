@@ -11,12 +11,13 @@ import threading
 import time
 from typing import Tuple
 
-import select
+from GUI import App
 
 
 class MotorControlSystem:
     def __init__(
         self,
+        app: App,
         ip_address: str = "192.168.4.201",
         broadcast_address: str = "192.168.255.255",
         subnet_mask: str = "255.255.0.0",
@@ -31,6 +32,7 @@ class MotorControlSystem:
         :param port_send: The port number for the send.
         :param port_receive: The port number for the receive.
         """
+        self.app = app
         self.ip_address = ip_address
         self.subnet_mask = subnet_mask
         self.port_send = port_send
@@ -73,7 +75,7 @@ class MotorControlSystem:
         self.receive_thread = threading.Thread(target=self._receive_loop, args=(self,))
 
         # Send enable command
-        self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
+        self._send_setpoint(enable=self.app.running, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
 
         # Wait for system to be ready and enabled
         max_attempts = 10
@@ -117,7 +119,7 @@ class MotorControlSystem:
             raise ValueError("Cannot set position while error flag is active")
 
         # Send the position command
-        self._send_setpoint(enable=True, acknowledge=False,
+        self._send_setpoint(enable=self.app.running, acknowledge=False,
                             velocity=velocity, acceleration=acceleration,
                             x=x, y=y)
 
@@ -149,7 +151,7 @@ class MotorControlSystem:
         `SetpointValues` to reset. Motion commands are ignored during an error state until reset.
         """
         self._send_setpoint(
-            enable=True,
+            enable=self.app.running,
             acknowledge=True,
             velocity=0,
             acceleration=0,

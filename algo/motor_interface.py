@@ -1,12 +1,10 @@
 from algo.model import Vec
 from motor_control_system import MotorControlSystem
 
-mcs = MotorControlSystem()
-mcs.connect()
+mcs: MotorControlSystem
 
 # TODO: ACS -> MCS translation goes in here
 
-FULL_SPEED = Vec(0, 0)
 def send_command(target_pos: Vec, velocity: float = 1.0):
     # print(f"current pos: {get_paddle_pos()}")
     # print(f"Sending command: {target_pos}")
