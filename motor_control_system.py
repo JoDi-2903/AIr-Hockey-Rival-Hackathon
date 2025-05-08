@@ -8,6 +8,8 @@ performed over a broadcast-capable Ethernet network using designated UDP ports o
 import socket
 import struct
 import time
+from typing import Tuple
+
 import select
 
 
@@ -105,6 +107,17 @@ class MotorControlSystem:
                             velocity=velocity, acceleration=acceleration,
                             x=x, y=y)
 
+    @property
+    def get_position(self) -> Tuple[float, float]:
+        """
+        Get the current position of the motor axes.
+
+        :return: current position as tuple (x, y) in mm
+        """
+        self._update_status()
+        return self.current_position
+
+    @property
     def get_velocity(self) -> float:
         """
         Get the current velocity of the motor axes.
