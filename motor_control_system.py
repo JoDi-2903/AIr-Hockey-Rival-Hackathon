@@ -1,0 +1,236 @@
+"""
+Interface for controlling the motor axes.
+
+Uses a UDP-based protocol for controlling and monitoring a 2-axis gantry. Communication is
+performed over a broadcast-capable Ethernet network using designated UDP ports on both ends.
+"""
+
+import socket
+import struct
+import time
+
+
+class MotorControlSystem:
+    def __init__(
+        self,
+        ip_address: str = "192.168.4.201",
+        broadcast_address: str = "192.168.255.255",
+        subnet_mask: str = "255.255.0.0",
+        port_send: int = 3000,
+        port_receive: int = 3001,
+    ):
+        """
+        Initialize the motor control system with the given parameters.
+
+        :param ip_address: The IP address of the motor control system.
+        :param subnet_mask: The subnet mask for the network.
+        :param port_send: The port number for the send.
+        :param port_receive: The port number for the receive.
+        """
+        self.ip_address = ip_address
+        self.subnet_mask = subnet_mask
+        self.port_send = port_send
+        self.port_receive = port_receive
+        self.broadcast_address = broadcast_address
+
+        # Status flags and position data
+        self.ready = False
+        self.enabled = False
+        self.error = False
+        self.current_position = (0, 0)
+        self.current_velocity = 0
+
+        # Communication sockets
+        self.send_socket = None
+        self.receive_socket = None
+
+    def connect(self) -> None:
+        """
+        Connect to the Festo motor control system and enable it.
+
+        :raises: ConnectionError if the `ready` and `enabled` status are not True.
+        """
+        # Create UDP sockets for sending and receiving
+        self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        # Allow broadcast messages
+        self.send_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+        # Bind to the receive port
+        self.receive_socket.bind(('0.0.0.0', self.port_send))
+
+        # Send enable command
+        self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
+
+        # Wait for system to be ready and enabled
+        max_attempts = 10
+        attempt = 0
+
+        while attempt < max_attempts:
+            self._update_status()
+            if self.ready and self.enabled:
+                return
+            time.sleep(0.5)
+            attempt += 1
+
+        # If we get here, connection failed
+        raise ConnectionError("Failed to connect: System not ready or not enabled")
+
+    def set_position(self, x: int, y: int, velocity: int, acceleration: int = 0) -> None:
+        """
+        Set the position of the motor axes.
+
+        :param x: Target X position
+        :param y: Target Y position
+        :param velocity: Desired velocity (0 for maximum velocity)
+        :param acceleration: Desired acceleration (0 for maximum acceleration)
+        :raises: ValueError if the error flag is set to True.
+        """
+        # Check for errors first
+        self._update_status()
+        if self.error:
+            raise ValueError("Cannot set position while error flag is active")
+
+        # Send the position command
+        self._send_setpoint(
+            enable=True, acknowledge=False, velocity=velocity, acceleration=acceleration, x=x, y=y
+        )
+
+    def get_position(self) -> tuple[int, int]:
+        """
+        Get the current position of the motor axes.
+
+        :return: The MCS coordinates as a tuple (x, y).
+        """
+        self._update_status()
+        return self.current_position
+
+    def get_velocity(self) -> int:
+        """
+        Get the current velocity of the motor axes.
+
+        :return: current velocity in mm/s
+        """
+        self._update_status()
+        return self.current_velocity
+
+    def acknowledge_error(self) -> None:
+        """
+        Acknowledge the error and reset the error flag.
+
+        If error is true in `ActualValues`, the gantry awaits `acknowledge = true` in
+        `SetpointValues` to reset. Motion commands are ignored during an error state until reset.
+        """
+        self._send_setpoint(
+            enable=True,
+            acknowledge=True,
+            velocity=0,
+            acceleration=0,
+            x=self.current_position[0],
+            y=self.current_position[1],
+        )
+
+        # Wait for error flag to clear
+        max_attempts = 10
+        attempt = 0
+
+        while attempt < max_attempts:
+            self._update_status()
+            if not self.error:
+                return
+            time.sleep(0.1)
+            attempt += 1
+
+        raise ValueError("Failed to acknowledge error")
+
+    def close(self) -> None:
+        """
+        Close the connection to the motor controller.
+        """
+        # Disable the system
+        try:
+            self._send_setpoint(
+                enable=False,
+                acknowledge=False,
+                velocity=0,
+                acceleration=0,
+                x=self.current_position[0],
+                y=self.current_position[1],
+            )
+        except:
+            pass
+
+        # Close sockets
+        if self.send_socket:
+            self.send_socket.close()
+        if self.receive_socket:
+            self.receive_socket.close()
+
+    def _update_status(self) -> None:
+        """
+        Update the status by receiving and processing the latest message from the controller.
+
+        On-demand update instead of a threaded approach.
+        """
+        # Set socket to non-blocking mode
+        self.receive_socket.setblocking(False)
+
+        try:
+            # Try to receive data, but don't block
+            data, _ = self.receive_socket.recvfrom(32)  # ActualValues size is 32 bytes
+
+            if len(data) == 32:
+                # Unpack according to the specification
+                # Format: 3 booleans (1 byte each), 5 bytes padding, 3 doubles (8 bytes each)
+                ready, enabled, error, _, _, _, _, _, velocity, x, y = struct.unpack(
+                    '<BBB5sddd', data
+                )
+
+                self.ready = bool(ready)
+                self.enabled = bool(enabled)
+                self.error = bool(error)
+                self.current_velocity = int(velocity)
+                self.current_position = (int(x), int(y))
+        except BlockingIOError:
+            # No data available, that's fine
+            pass
+        except Exception as e:
+            print(f"Error receiving update: {e}")
+
+        # Return to blocking mode for other operations
+        self.receive_socket.setblocking(True)
+
+    def _send_setpoint(
+        self,
+        enable: bool,
+        acknowledge: bool,
+        velocity: float,
+        acceleration: float,
+        x: float,
+        y: float,
+    ) -> None:
+        """
+        Pack and send setpoint values to the motor controller.
+
+        :param enable: Enable/disable the system
+        :param acknowledge: Acknowledge errors
+        :param velocity: Desired velocity
+        :param acceleration: Desired acceleration
+        :param x: Target X position
+        :param y: Target Y position
+        """
+        # Pack data according to the specification
+        # Format: 1 byte bool, 1 byte bool, 6 bytes padding, 4 doubles (8 bytes each)
+        data = struct.pack(
+            '<BB6xdddd',
+            1 if enable else 0,
+            1 if acknowledge else 0,
+            float(velocity),
+            float(acceleration),
+            float(x),
+            float(y),
+        )
+
+        # Send to the PLC
+        self.send_socket.sendto(data, (self.ip_address, self.port_receive))
