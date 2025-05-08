@@ -83,34 +83,40 @@ class MotorControlSystem:
         # # If we get here, connection failed
         # raise ConnectionError("Failed to connect: System not ready or not enabled")
 
-    def set_position(self, x: int, y: int, velocity: int, acceleration: int = 0) -> None:
+    def set_position(self, x: float, y: float, velocity: float, acceleration: float = 0.0) -> None:
         """
         Set the position of the motor axes.
 
-        :param x: Target X position
-        :param y: Target Y position
-        :param velocity: Desired velocity in mm/s (0 for maximum velocity)
-        :param acceleration: Desired  in mm/s^2 (0 for maximum acceleration)
-        :raises: ValueError if the error flag is set to True.
+        :param x: Target X position in mm
+        :param y: Target Y position in mm
+        :param velocity: Desired velocity as float between 0.0 and 1.0 (0.0 for maximum velocity)
+        :param acceleration: Desired acceleration as float between 0.0 and 1.0 (0.0 for maximum acceleration)
+        :raises: ValueError if the error flag is set to True or if velocity/acceleration values are invalid.
         """
+        # Validate velocity and acceleration ranges
+        if not 0.0 <= velocity <= 1.0:
+            raise ValueError("Velocity must be between 0.0 and 1.0")
+        if not 0.0 <= acceleration <= 1.0:
+            raise ValueError("Acceleration must be between 0.0 and 1.0")
+
         # Check for errors first
         self._update_status()
         if self.error:
             raise ValueError("Cannot set position while error flag is active")
 
         # Send the position command
-        self._send_setpoint(
-            enable=True, acknowledge=False, velocity=velocity, acceleration=acceleration, x=x, y=y
-        )
+        self._send_setpoint(enable=True, acknowledge=False,
+                            velocity=velocity, acceleration=acceleration,
+                            x=x, y=y)
 
-    def get_position(self) -> tuple[int, int]:
+    def get_velocity(self) -> float:
         """
-        Get the current position of the motor axes.
+        Get the current velocity of the motor axes.
 
-        :return: The MCS coordinates as a tuple (x, y).
+        :return: current velocity as float between 0.0 and 1.0
         """
         self._update_status()
-        return self.current_position
+        return self.current_velocity
 
     def get_velocity(self) -> int:
         """
@@ -196,8 +202,8 @@ class MotorControlSystem:
                 self.ready = bool(ready)
                 self.enabled = bool(enabled)
                 self.error = bool(error)
-                self.current_velocity = int(velocity)
-                self.current_position = (int(x), int(y))
+                self.current_velocity = float(velocity)  # Store as float, not int
+                self.current_position = (float(x), float(y))  # Store as float for precision
         except BlockingIOError:
             # No data available, that's fine
             pass
@@ -207,24 +213,19 @@ class MotorControlSystem:
         # Return to blocking mode for other operations
         self.receive_socket.setblocking(True)
 
-    def _send_setpoint(
-        self,
-        enable: bool,
-        acknowledge: bool,
-        velocity: float,
-        acceleration: float,
-        x: float,
-        y: float,
-    ) -> None:
+    def _send_setpoint(self, enable: bool, acknowledge: bool,
+                       velocity: float, acceleration: float,
+                       x: float, y: float, use_broadcast: bool = False) -> None:
         """
         Pack and send setpoint values to the motor controller.
 
         :param enable: Enable/disable the system
         :param acknowledge: Acknowledge errors
-        :param velocity: Desired velocity
-        :param acceleration: Desired acceleration
-        :param x: Target X position
-        :param y: Target Y position
+        :param velocity: Desired velocity as float between 0.0 and 1.0
+        :param acceleration: Desired acceleration as float between 0.0 and 1.0
+        :param x: Target X position in mm
+        :param y: Target Y position in mm
+        :param use_broadcast: Whether to use broadcast instead of unicast
         """
         # Pack data according to the specification
         # Format: 1 byte bool, 1 byte bool, 6 bytes padding, 4 doubles (8 bytes each)
@@ -235,8 +236,9 @@ class MotorControlSystem:
             float(velocity),
             float(acceleration),
             float(x),
-            float(y),
+            float(y)
         )
 
-        # Send to the PLC
-        self.send_socket.sendto(data, (self.ip_address, self.port_receive))
+        # Send to the PLC - either unicast or broadcast
+        target_address = self.broadcast_address if use_broadcast else self.ip_address
+        self.send_socket.sendto(data, (target_address, self.port_receive))
