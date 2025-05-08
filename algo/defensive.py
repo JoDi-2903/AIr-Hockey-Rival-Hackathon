@@ -1,7 +1,10 @@
-from algo.algo import PUCK_RADIUS, send_command, get_our_paddle
+from algo.motor_interface import send_command, get_our_paddle
+from algo.constants import PUCK_RADIUS
 from algo.model import Vec
 from algo.util import clamp
+from algo.constants import field
 
+state = "start"
 def jitter_in_front_of_goal():
     global state
     global field

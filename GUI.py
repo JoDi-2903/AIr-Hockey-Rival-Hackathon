@@ -1,53 +1,40 @@
 import tkinter as tk
-from tkinter import messagebox, scrolledtext
-from PIL import Image, ImageTk
+from tkinter.scrolledtext import ScrolledText
+import queue
 
-# Platzhalter-Funktionen
-def start_camera():
-    log_message("Kamera gestartet (simuliert).")
+class App(tk.Tk):
+    running: bool = False
 
-def stop_camera():
-    log_message("Kamera gestoppt (simuliert).")
+    def __init__(self):
+        super().__init__()
+        self.title("AIr-Hockey - Team Awesome Aquajellies")
+        self.geometry("500x500")
 
-def start_tracking():
-    log_message("Puck-Tracking aktiviert (simuliert).")
+        tk.Label(self, text="Log:").pack(anchor=tk.W, padx=5, pady=5)
+        self.text_area = ScrolledText(self, state='disabled', width=60, height=10, wrap=tk.WORD)
+        self.text_area.pack(pady=5, padx=5)
 
-def start_algorithm():
-    log_message("Spiel-Algorithmus läuft (simuliert).")
+        tk.Button(self, text="Start", command=self.start_running, bg="lightgreen").pack(padx=5, pady=5)
+        tk.Button(self, text="Stop", command=self.stop_running, bg="#F77B7B").pack(padx=5, pady=5)
 
-def start_control():
-    log_message("Robotersteuerung aktiv (simuliert).")
+        self.log_queue = queue.Queue()
 
-def log_message(msg):
-    log_box.insert(tk.END, msg + "\n")
-    log_box.see(tk.END)
+        self.after(100, self.process_log_queue)
 
-# Fenster erstellen
-root = tk.Tk()
-root.title("AIr-Hockey - Team Awesome Aquajellies")
-root.geometry("500x550")
+    def start_running(self):
+        self.running = True
 
-# Qualle-Bild laden und anzeigen
-try:
-    qualle_img = Image.open("qualle.png")
-    qualle_img = qualle_img.resize((150, 150))  # ggf. anpassen
-    qualle_photo = ImageTk.PhotoImage(qualle_img)
-    qualle_label = tk.Label(root, image=qualle_photo)
-    qualle_label.pack(pady=10)
-except Exception as e:
-    tk.Label(root, text="⚠️ Qualle-Bild nicht gefunden").pack(pady=10)
+    def stop_running(self):
+        self.running = False
 
-# Buttons
-tk.Button(root, text="Kamera starten", command=start_camera, width=25, bg="#28a745", fg="white").pack(pady=5)
-tk.Button(root, text="Kamera stoppen", command=stop_camera, width=25, bg="#dc3545", fg="white").pack(pady=5)
-tk.Button(root, text="Puck-Tracking starten", command=start_tracking, width=25).pack(pady=5)
-tk.Button(root, text="Algorithmus starten", command=start_algorithm, width=25).pack(pady=5)
-tk.Button(root, text="Robotersteuerung starten", command=start_control, width=25).pack(pady=5)
+    def process_log_queue(self):
+        while not self.log_queue.empty():
+            msg = self.log_queue.get()
+            self.append_log(msg)
+        self.after(100, self.process_log_queue)  # Check again after 100 ms
 
-# Logs
-tk.Label(root, text="System-Logs:").pack()
-log_box = scrolledtext.ScrolledText(root, width=60, height=10, wrap=tk.WORD)
-log_box.pack(pady=10)
-
-# GUI starten
-root.mainloop()
+    def append_log(self, msg):
+        self.text_area.configure(state='normal')
+        self.text_area.insert(tk.END, msg + "\n")
+        self.text_area.configure(state='disabled')
+        self.text_area.see(tk.END)  # Auto-scroll
