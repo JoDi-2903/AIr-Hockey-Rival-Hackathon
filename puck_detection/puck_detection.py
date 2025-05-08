@@ -1,21 +1,21 @@
 # import the necessary packages
 from collections import deque
-from imutils.video import VideoStream
 import numpy as np
-import argparse
 import cv2
 import imutils
-import time
 
 # Kamera-Index (0 intern most of the time here 1)
-camera_index = 1
+camera_index = 2
 
 # access to camera
-cap = cv2.VideoCapture(camera_index)  # Optional: CAP_DSHOW für Windows Performance
+cap = cv2.VideoCapture(camera_index, cv2.CAP_V4L2)  # Optional: CAP_DSHOW für Windows Performance
 
 # Resolution
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+cap.set(cv2.CAP_PROP_FOCUS, 5)
 
 # Überprüfe, ob die Kamera geöffnet wurde
 if not cap.isOpened():
@@ -40,7 +40,6 @@ while True:
         break
 
     # resize the frame, blur it, and convert it to the HSV color space
-    frame = imutils.resize(frame, width=600)
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
