@@ -36,6 +36,13 @@ class MotorControlSystem:
         self.port_receive = port_receive
         self.broadcast_address = broadcast_address
 
+        # Define the axes safety limits
+        safety_limit_size = 20
+        self.x_min = -5 + safety_limit_size
+        self.x_max = 450 - safety_limit_size
+        self.y_min = -5 + safety_limit_size
+        self.y_max = 390 - safety_limit_size
+
         # Status flags and position data
         self.ready = False
         self.enabled = False
@@ -57,15 +64,11 @@ class MotorControlSystem:
         self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # # Allow broadcast messages
-        # self.send_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-
         # Bind to the receive port
         self.receive_socket.bind(('0.0.0.0', self.port_receive))
 
         # Send enable command
-        #self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
-        self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=40, y=20) # Debug
+        self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
 
         # Wait for system to be ready and enabled
         max_attempts = 10
@@ -96,6 +99,12 @@ class MotorControlSystem:
             raise ValueError("Velocity must be between 0.0 and 1.0")
         if not 0.0 <= acceleration <= 1.0:
             raise ValueError("Acceleration must be between 0.0 and 1.0")
+
+        # Check if the safety area is exceeded
+        if x < self.x_min or x > self.x_max:
+            raise ValueError(f"X position {x} is out of bounds ({self.x_min}, {self.x_max})")
+        if y < self.y_min or y > self.y_max:
+            raise ValueError(f"Y position {y} is out of bounds ({self.y_min}, {self.y_max})")
 
         # Check for errors first
         self._update_status()
