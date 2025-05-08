@@ -65,25 +65,19 @@ class MotorControlSystem:
         #self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
         self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=40, y=20) # Debug
 
-        while True:     ## DEBUG
+        # Wait for system to be ready and enabled
+        max_attempts = 10
+        attempt = 0
+
+        while attempt < max_attempts:
             self._update_status()
-            print(f"enabled: {self.enabled}, ready: {self.ready}, error: {self.error}")
-            time.sleep(1)
+            if self.ready and self.enabled:
+                return
+            time.sleep(0.5)
+            attempt += 1
 
-
-        ## Wait for system to be ready and enabled
-        # max_attempts = 10
-        # attempt = 0
-        #
-        # while attempt < max_attempts:
-        #     self._update_status()
-        #     if self.ready and self.enabled:
-        #         return
-        #     time.sleep(0.5)
-        #     attempt += 1
-        #
-        # # If we get here, connection failed
-        # raise ConnectionError("Failed to connect: System not ready or not enabled")
+        # If we get here, connection failed
+        raise ConnectionError("Failed to connect: System not ready or not enabled")
 
     def set_position(self, x: float, y: float, velocity: float, acceleration: float = 0.0) -> None:
         """
