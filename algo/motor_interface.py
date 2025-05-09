@@ -8,7 +8,9 @@ mcs.connect()
 def send_command(target_pos: Vec, velocity: float = 1.0):
     # print(f"current pos: {get_paddle_pos()}")
     # print(f"Sending command: {target_pos}")
+    print(target_pos)
     x, y = field_to_machine_coordinates((target_pos.x, target_pos.y))
+    print(x, y)
     mcs.set_position(x, y, velocity)
 
 def get_our_paddle() -> (Vec, Vec):

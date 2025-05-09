@@ -1,8 +1,8 @@
 """Transform between the coordinate systems of Field, MCS and Camera."""
 
 # Offsets field origin by 5.5mm in X and 6.5mm in Y.
-X_OFFSET_MCS = 5.5
-Y_OFFSET_MCS = 6.5
+X_OFFSET_MCS = 67 - 20
+Y_OFFSET_MCS = 75 - 20
 
 def field_to_machine_coordinates(pos_field: tuple[float, float]) -> tuple[float, float]:
     """
