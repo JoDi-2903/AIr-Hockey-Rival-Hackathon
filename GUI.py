@@ -4,6 +4,7 @@ from PIL import Image, ImageTk
 import itertools
 import queue
 import threading
+from motor_control_system import MotorControlSystem  # Assuming this is the correct import for your motor control system
 
 
 class App(tk.Tk):
@@ -46,7 +47,7 @@ class App(tk.Tk):
             self.qualle_photo = ImageTk.PhotoImage(qualle_img)
             tk.Label(self, image=self.qualle_photo, bg="white").pack(pady=(10, 30))
         except:
-            tk.Label(self, text="(Qualle fehlt)", font=("Arial", 14), bg="white").pack(pady=(10, 30))
+            tk.Label(self, text="AI-r Hockey Rival", font=("Arial", 14), bg="white").pack(pady=(10, 30))
 
         # Buttons
         button_style = {"width": 20, "height": 2, "font": ("Arial", 12, "bold")}
