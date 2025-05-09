@@ -5,7 +5,9 @@ from algo.constants import ROBOT_SPEED
 time_tolerance = 30 * 1e-3  # ms, tolerance for time prediction
 
 def predict_save_shot(current_puck: Entity, field: Field, our_paddle: Entity) -> Vec | None:
-    """"""
+    """Calculate the position to move to in order to intercept the puck.
+    If we have more time than the puck to reach the shot line, we can wait. It returns None.
+    If we don't have enough time or the puck is not moving we can use the defence algorith, it raises ValueError."""
     # Predict the puck's position and velocity at the shot line
     try:
         puck_pos, puck_v, puck_time_to_reach = predict_offence_pos_time(current_puck, field, 200)
