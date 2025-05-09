@@ -1,4 +1,4 @@
-from algo.constants import PUCK_RADIUS
+from algo.constants import PUCK_RADIUS, BASE_X
 from algo.model import Vec
 from algo.motor_interface import send_command, get_paddle_pos
 from algo.util import clamp
@@ -9,8 +9,7 @@ def jitter_in_front_of_goal():
     global field
     bottom = field.h / 2 - field.home_goal_height / 2
     top = field.h / 2 + field.home_goal_height / 2
-    target_x = PUCK_RADIUS
-    target_x = 50 # TODO: remove when CS translation is in place
+    target_x = BASE_X
 
     pad = get_paddle_pos()
 

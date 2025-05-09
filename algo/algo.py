@@ -1,5 +1,5 @@
 from algo.constants import SMALL_PUCK_RADIUS, HUMAN_PADDLE_RADIUS, ROBOT_PADDLE_RADIUS
-from algo.defensive import jitter_in_front_of_goal
+from algo.defensive import jitter_in_front_of_goal, mimic_puck_y
 from algo.model import Vec, Entity
 from algo.motor_interface import get_paddle_pos
 from algo.vision_interface import vision_puck_position
@@ -16,4 +16,5 @@ def run_step():
 
     # select strategy based on situation
     if True:
-        jitter_in_front_of_goal()
+        # jitter_in_front_of_goal()
+        mimic_puck_y()

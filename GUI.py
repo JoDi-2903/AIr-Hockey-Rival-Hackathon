@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
 import queue
 
-from algo.motor_interface import mcs
+# from algo.motor_interface import mcs
 
 
 class App(tk.Tk):
@@ -26,11 +26,11 @@ class App(tk.Tk):
 
     def start_running(self):
         self.running = True
-        mcs.connect()
+        # mcs.connect()
 
     def stop_running(self):
         self.running = False
-        mcs.close()
+        # mcs.close()
 
     def process_log_queue(self):
         while not self.log_queue.empty():
