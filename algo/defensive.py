@@ -10,7 +10,6 @@ def jitter_in_front_of_goal():
     bottom = field.h / 2 - field.home_goal_height / 2
     top = field.h / 2 + field.home_goal_height / 2
     target_x = PUCK_RADIUS
-    target_x = 50 # TODO: remove when CS translation is in place
 
     pad = get_paddle_pos()
 
