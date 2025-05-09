@@ -1,20 +1,25 @@
-from typing import Tuple
+"""Transform between the coordinate systems of Field, MCS and Camera."""
 
-X_OFFSET = 5.5
-Y_OFFSET = 6.5
+# Offsets field origin by 5.5mm in X and 6.5mm in Y.
+X_OFFSET_MCS = 5.5
+Y_OFFSET_MCS = 6.5
 
-def field_to_machine_coordinates(pos: Tuple[float, float]) -> Tulpe[float, float]:
+def field_to_machine_coordinates(pos_field: tuple[float, float]) -> tuple[float, float]:
     """
     Convert field coordinates to machine coordinates.
-    Offsets field origin by 5.5mm in X and 6.5mm in Y.
-    """
-    x, y = pos
-    return x -X_OFFSET, y - Y_OFFSET
 
-def machine_to_field_coordinates(pos: Tuple[float, float]) -> Tulpe[float, float]
+    :param pos_field: Field coordinates.
+    :return: Machine coordinates.
+    """
+    x, y = pos_field
+    return x - X_OFFSET_MCS, y - Y_OFFSET_MCS
+
+def machine_to_field_coordinates(pos_mcs: tuple[float, float]) -> tuple[float, float]:
     """
     Convert machine coordinates to field coordinates.
-    Adds the Offset to the field origin.
+    
+    :param pos_mcs: Machine coordinates.
+    :return: Field coordinates.
     """
-    x, y = pos
-    return x + X_OFFSET, y + Y_OFFSET
+    x, y = pos_mcs
+    return x + X_OFFSET_MCS, y + Y_OFFSET_MCS
