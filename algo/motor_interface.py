@@ -1,7 +1,8 @@
 from algo.model import Vec
 from motor_control_system import MotorControlSystem
 
-mcs: MotorControlSystem
+mcs: MotorControlSystem = MotorControlSystem()
+mcs.connect()
 
 # TODO: ACS -> MCS translation goes in here
 

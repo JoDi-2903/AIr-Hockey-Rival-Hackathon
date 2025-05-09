@@ -1,6 +1,6 @@
 import time
 
-vision_puck_position: (float, float)
+vision_puck_position: (float, float) = (0, 0)
 
 def vision_loop(app):
     """ Placeholder for vision task

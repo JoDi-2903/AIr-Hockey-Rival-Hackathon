@@ -11,13 +11,29 @@ import threading
 import time
 from typing import Tuple
 
-from GUI import App
 
+def _receive_loop(this) -> None:
+    msglen = 32
+    while True:
+        try:
+            # Read until we have 32 bytes (might happen in multiple chunks in high network load)
+            chunks = []
+            bytes_recd = 0
+            while bytes_recd < msglen:
+                # blocking (this is why we are in an extra thread)
+                chunk = this.receive_socket.recv(msglen - bytes_recd)
+                if chunk == b'':
+                    raise RuntimeError("socket connection broken")
+                chunks.append(chunk)
+                bytes_recd = bytes_recd + len(chunk)
+            this.data = b''.join(chunks)
+        except Exception as e:
+            print(f"Error receiving update: {e}")
 
 class MotorControlSystem:
     def __init__(
         self,
-        app: App,
+        # app,
         ip_address: str = "192.168.4.201",
         broadcast_address: str = "192.168.255.255",
         subnet_mask: str = "255.255.0.0",
@@ -32,7 +48,7 @@ class MotorControlSystem:
         :param port_send: The port number for the send.
         :param port_receive: The port number for the receive.
         """
-        self.app = app
+        # self.app = app
         self.ip_address = ip_address
         self.subnet_mask = subnet_mask
         self.port_send = port_send
@@ -57,6 +73,11 @@ class MotorControlSystem:
         self.send_socket = None
         self.receive_socket = None
         self.receive_thread = None
+        self.data = None
+
+    def is_running(self):
+        # return app.running
+        return True
 
     def connect(self) -> None:
         """
@@ -72,10 +93,10 @@ class MotorControlSystem:
         self.receive_socket.bind(('0.0.0.0', self.port_receive))
 
         # Start thread to read from receive_socket
-        self.receive_thread = threading.Thread(target=self._receive_loop, args=(self,))
+        self.receive_thread = threading.Thread(target=_receive_loop, args=(self,), daemon=True).start()
 
         # Send enable command
-        self._send_setpoint(enable=self.app.running, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
+        self._send_setpoint(enable=self.is_running(), acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
 
         # Wait for system to be ready and enabled
         max_attempts = 10
@@ -119,7 +140,7 @@ class MotorControlSystem:
             raise ValueError("Cannot set position while error flag is active")
 
         # Send the position command
-        self._send_setpoint(enable=self.app.running, acknowledge=False,
+        self._send_setpoint(enable=self.is_running(), acknowledge=False,
                             velocity=velocity, acceleration=acceleration,
                             x=x, y=y)
 
@@ -151,7 +172,7 @@ class MotorControlSystem:
         `SetpointValues` to reset. Motion commands are ignored during an error state until reset.
         """
         self._send_setpoint(
-            enable=self.app.running,
+            enable=self.is_running(),
             acknowledge=True,
             velocity=0,
             acceleration=0,
@@ -196,6 +217,7 @@ class MotorControlSystem:
             self.receive_socket.close()
 
     def _receive_loop(self) -> None:
+        print("here")
         msglen = 32
         while True:
             try:
@@ -210,6 +232,7 @@ class MotorControlSystem:
                     chunks.append(chunk)
                     bytes_recd = bytes_recd + len(chunk)
                 self.data = b''.join(chunks)
+                print("saved data")
             except Exception as e:
                 print(f"Error receiving update: {e}")
 
@@ -221,6 +244,8 @@ class MotorControlSystem:
         """
         if not self.data:
             print("Error: no data to parse")
+            self.error = True
+            return
         # print(f"Converting raw data: ({len(data)} bytes): {data}")
 
         # Format: 3 Booleans, 5 Bytes Padding, 3 doubles

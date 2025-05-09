@@ -1,4 +1,4 @@
-from algo.constants import PUCK_RADIUS
+from algo.constants import PUCK_RADIUS, field
 from algo.model import Vec
 from algo.motor_interface import send_command, get_paddle_pos
 from algo.util import clamp
