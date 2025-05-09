@@ -1,4 +1,5 @@
 # import the necessary packages
+import time
 from collections import deque
 import numpy as np
 import cv2
@@ -29,15 +30,17 @@ redLower1 = (0, 120, 70)
 redUpper1 = (10, 255, 255)
 redLower2 = (150, 120, 70)
 redUpper2 = (180, 255, 255)
-pts = deque(maxlen=64)
+pts = deque(maxlen=3)
 
 # keep looping
-while True:
+# noinspection t
+def get_and_use_frame():
     # grab the current frame
     ret, frame = cap.read()
     if not ret:
-        print("Kein Frame erhalten.")
-        break
+        raise RuntimeError("Cannot read from camera")
+
+    timestamp = time.time()
 
     # resize the frame, blur it, and convert it to the HSV color space
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
@@ -79,22 +82,4 @@ while True:
             # update the points queue
             pts.appendleft(center)
 
-            # loop over the set of tracked points
-            for i in range(1, len(pts)):
-                if pts[i - 1] is None or pts[i] is None:
-                    continue
-                thickness = int(np.sqrt(64 / float(i + 1)) * 2.5)
-                cv2.line(frame, pts[i - 1], pts[i], (0, 0, 255), thickness)
-
-    # show the frame to our screen, frame regular view, mask object view
-    cv2.imshow("Frame", frame)
-    cv2.imshow("Mask", mask)
-    key = cv2.waitKey(1) & 0xFF
-
-    # if the 'q' key is pressed, stop the loop
-    if key == ord("q"):
-        break
-
-# close all windows
-cap.release()
-cv2.destroyAllWindows()
+    return timestamp, pts

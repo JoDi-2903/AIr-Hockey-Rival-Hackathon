@@ -1,6 +1,11 @@
 import time
 
+from algo.model import Vec
+from puck_detection.puck_detection import get_and_use_frame
+
+timestamp = 0.0
 vision_puck_position: (float, float) = (0, 0)
+vision_puck_velocity: (float, float) = (0, 0)
 
 def vision_loop(app):
     """ Placeholder for vision task
@@ -8,17 +13,18 @@ def vision_loop(app):
     this runs in a separate thread for vision tasks and maybe polling
     """
     global vision_puck_position
+    global vision_puck_velocity
 
-    # FEATURE: predict human action
-    # TODO: set puck using vision, and maybe opponent_paddle
+    # FEATURE: see and predict human action
 
-
-    for i in range(100000):
-        time.sleep(0.033)
-        app.log_queue.put(f"New frame {i}")
+    while True:
+        new_timestamp, pts = get_and_use_frame()
+        app.log_queue.put(f"New frame")
         if app.running:
-            app.log_queue.put(f"Running step")
-            vision_puck_position = (0, 0)
+            dt = new_timestamp - timestamp
+            last_pos = Vec(*(pts[1]))
+            cur_pos = Vec(*(pts[0]))
+            vision_puck_position = cur_pos
+            vision_puck_velocity = (cur_pos - last_pos) / dt
         else:
             app.log_queue.put(f"Not using frame")
-    app.log_queue.put("stopping")
