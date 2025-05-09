@@ -7,15 +7,33 @@ performed over a broadcast-capable Ethernet network using designated UDP ports o
 
 import socket
 import struct
+import threading
 import time
 from typing import Tuple
 
-import select
 
+def _receive_loop(this) -> None:
+    msglen = 32
+    while True:
+        try:
+            # Read until we have 32 bytes (might happen in multiple chunks in high network load)
+            chunks = []
+            bytes_recd = 0
+            while bytes_recd < msglen:
+                # blocking (this is why we are in an extra thread)
+                chunk = this.receive_socket.recv(msglen - bytes_recd)
+                if chunk == b'':
+                    raise RuntimeError("socket connection broken")
+                chunks.append(chunk)
+                bytes_recd = bytes_recd + len(chunk)
+            this.data = b''.join(chunks)
+        except Exception as e:
+            print(f"Error receiving update: {e}")
 
 class MotorControlSystem:
     def __init__(
         self,
+        # app,
         ip_address: str = "192.168.4.201",
         broadcast_address: str = "192.168.255.255",
         subnet_mask: str = "255.255.0.0",
@@ -30,6 +48,7 @@ class MotorControlSystem:
         :param port_send: The port number for the send.
         :param port_receive: The port number for the receive.
         """
+        # self.app = app
         self.ip_address = ip_address
         self.subnet_mask = subnet_mask
         self.port_send = port_send
@@ -53,6 +72,12 @@ class MotorControlSystem:
         # Communication sockets
         self.send_socket = None
         self.receive_socket = None
+        self.receive_thread = None
+        self.data = None
+
+    def is_running(self):
+        # return app.running
+        return True
 
     def connect(self) -> None:
         """
@@ -67,8 +92,11 @@ class MotorControlSystem:
         # Bind to the receive port
         self.receive_socket.bind(('0.0.0.0', self.port_receive))
 
+        # Start thread to read from receive_socket
+        self.receive_thread = threading.Thread(target=_receive_loop, args=(self,), daemon=True).start()
+
         # Send enable command
-        self._send_setpoint(enable=True, acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
+        self._send_setpoint(enable=self.is_running(), acknowledge=False, velocity=0, acceleration=0, x=0, y=0)
 
         # Wait for system to be ready and enabled
         max_attempts = 10
@@ -112,7 +140,7 @@ class MotorControlSystem:
             raise ValueError("Cannot set position while error flag is active")
 
         # Send the position command
-        self._send_setpoint(enable=True, acknowledge=False,
+        self._send_setpoint(enable=self.is_running(), acknowledge=False,
                             velocity=velocity, acceleration=acceleration,
                             x=x, y=y)
 
@@ -133,7 +161,7 @@ class MotorControlSystem:
 
         :return: current velocity as float between 0.0 and 1.0
         """
-        self._update_status()
+        self._update_status() # FEATURE: don't updated twice
         return self.current_velocity
 
     def acknowledge_error(self) -> None:
@@ -144,7 +172,7 @@ class MotorControlSystem:
         `SetpointValues` to reset. Motion commands are ignored during an error state until reset.
         """
         self._send_setpoint(
-            enable=True,
+            enable=self.is_running(),
             acknowledge=True,
             velocity=0,
             acceleration=0,
@@ -188,37 +216,45 @@ class MotorControlSystem:
         if self.receive_socket:
             self.receive_socket.close()
 
+    def _receive_loop(self) -> None:
+        print("here")
+        msglen = 32
+        while True:
+            try:
+                # Read until we have 32 bytes (might happen in multiple chunks in high network load)
+                chunks = []
+                bytes_recd = 0
+                while bytes_recd < msglen:
+                    # blocking (this is why we are in an extra thread)
+                    chunk = self.receive_socket.recv(msglen - bytes_recd)
+                    if chunk == b'':
+                        raise RuntimeError("socket connection broken")
+                    chunks.append(chunk)
+                    bytes_recd = bytes_recd + len(chunk)
+                self.data = b''.join(chunks)
+                print("saved data")
+            except Exception as e:
+                print(f"Error receiving update: {e}")
+
     def _update_status(self) -> None:
         """
         Update the status by receiving and processing the latest message from the controller.
 
         On-demand update instead of a threaded approach.
         """
-        # Set socket to non-blocking mode
-        self.receive_socket.setblocking(False)
+        if not self.data:
+            print("Error: no data to parse")
+            self.error = True
+            return
+        # print(f"Converting raw data: ({len(data)} bytes): {data}")
 
-        try:
-            ready_sockets, _, _ = select.select([self.receive_socket], [], [], 0.5)
-            if ready_sockets:
-                data, addr = self.receive_socket.recvfrom(32)  # ActualValues size is 32 bytes
-                print(f"Raw data received ({len(data)} bytes): {data}")
-                if len(data) == 32:
-                    # Format: 3 Booleans, 5 Bytes Padding, 3 doubles
-                    ready, enabled, error, velocity, x, y = struct.unpack('<BBB5xddd', data)
-                    self.ready = bool(ready)
-                    self.enabled = bool(enabled)
-                    self.error = bool(error)
-                    self.current_velocity = float(velocity)
-                    self.current_position = (float(x), float(y))
-                else:
-                    print(f"Invalid data length: {len(data)}")
-            else:
-                print("No data available.")
-        except Exception as e:
-            print(f"Error receiving update: {e}")
-        finally:
-            # Return to blocking mode for other operations
-            self.receive_socket.setblocking(True)
+        # Format: 3 Booleans, 5 Bytes Padding, 3 doubles
+        ready, enabled, error, velocity, x, y = struct.unpack('<BBB5xddd', self.data)
+        self.ready = bool(ready)
+        self.enabled = bool(enabled)
+        self.error = bool(error)
+        self.current_velocity = float(velocity)
+        self.current_position = (float(x), float(y))
 
     def _send_setpoint(self, enable: bool, acknowledge: bool,
                        velocity: float, acceleration: float,
@@ -245,7 +281,7 @@ class MotorControlSystem:
             float(x),
             float(y)
         )
-        print(f"Raw data to send ({len(data)} bytes): {data}")
+        # print(f"Raw data to send ({len(data)} bytes): {data}")
 
         # Send to the PLC - either unicast or broadcast
         target_address = self.broadcast_address if use_broadcast else self.ip_address
